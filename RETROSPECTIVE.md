@@ -9,3 +9,5 @@
     Because the model was heavily spoon-fed the perfect answers during training, the moment it makes a single mistake during inference, it panics and the rest of the sentence turns into gibberish. It never learned how to recover from its own bad predictions.
 
 4. I got to know about the TensorDataset method which is almost the fastest and easiest method which I encountered till now.
+
+5. Use of model.train() and model.eval() got more clearer t ome along with the Exposure Biad Tradeoff
