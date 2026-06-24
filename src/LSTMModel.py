@@ -68,6 +68,7 @@ class LSTMModel(nn.Module):
             # Made device dynamic so it works on GPU if your inputs are on GPU
             decoder_word_input = torch.full((batch_size, 1), start_token, dtype=torch.long)
             decoded_words = []
+            attention_plot_weights = []
 
             for word_idx in range(max_trg_len):
                 # The Shape Fix for inference
@@ -75,6 +76,7 @@ class LSTMModel(nn.Module):
 
                 attention_input = torch.cat((hidden_expanded, encoder_output), dim=2)
                 attention_weights = torch.softmax(self.attention(attention_input), dim=1)
+                attention_plot_weights.append(attention_weights.squeeze(-1))
                 context_vector = torch.sum(attention_weights * encoder_output, dim=1, keepdim=True)
 
                 decoder_embedded = self.decoder_embedding(decoder_word_input)
@@ -91,7 +93,8 @@ class LSTMModel(nn.Module):
                 
             # Un-indented the return statement so the loop actually finishes!
             # Returns a tensor of shape [batch, max_trg_len] containing predicted token IDs
-            return torch.cat(decoded_words, dim=1), prev_decoder_state
+            attention_matrix = torch.stack(attention_plot_weights, dim=1).squeeze(0)
+            return torch.cat(decoded_words, dim=1), attention_matrix
 
 
 __all__ = ['LSTMModel']

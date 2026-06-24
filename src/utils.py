@@ -1,7 +1,8 @@
 import os
 import urllib.request
-import zipfile
+import matplotlib.pyplot as plt
 import numpy as np
+import zipfile
 import tensorflow as tf
 from keras.layers import TextVectorization
 import matplotlib.pyplot as plt
@@ -167,4 +168,78 @@ def translate_sentence(model, sentence, src_vectorizer, trg_vectorizer, max_len=
     # Join the list of words into a single string
     return " ".join(translated_words)
 
-__all__ = ["load_and_vectorize_data", "train_model", "translate_sentence"]
+
+def translate_and_visualize(model, sentence, src_vectorizer, trg_vectorizer, max_len=50):
+    model.eval()
+
+    # 1. Vectorize and create input list
+    input_vector = src_vectorizer(np.array([sentence]))
+    input_tensor = torch.tensor(input_vector.numpy(), dtype=torch.long)
+
+    # 2. Extract original English words for the X-axis mapping
+    # We clean it slightly to match the vectorizer's internal standardization
+    source_words = [word for word in sentence.lower().replace('.', ' .').split() if word != '']
+
+    # 3. Pass through model to get token IDs and the raw attention tensor
+    with torch.no_grad():
+        output_tokens, attention_matrix = model(encoder_input=input_tensor, training=False, max_trg_len=max_len)
+
+    # Convert output token indices back to a list of strings
+    output_tokens = output_tokens.squeeze().cpu().numpy()
+    vocab = trg_vectorizer.get_vocabulary()
+    
+    target_words = []
+    for token_id in output_tokens:
+        word = vocab[token_id]
+        if word == 'endseq':
+            # We keep 'endseq' in the target list so we can see when the model decided to stop
+            target_words.append(word)
+            break
+        if word not in ['', '<PAD>', '[UNK]', 'startseq']:
+            target_words.append(word)
+
+    print(f"English Input: {sentence}")
+    print(f"French Output: {' '.join(target_words[:-1])}") # Exclude 'endseq' from printed text
+
+    # 4. Trigger the plot!
+    plot_attention(attention_matrix, source_words, target_words)
+
+def plot_attention(attention_matrix, source_words, target_words):
+    """
+    attention_matrix: NumPy array or PyTorch tensor of shape (target_len, source_len)
+    source_words: List of strings containing input words (e.g., ['i', 'love', 'you', '.'])
+    target_words: List of strings containing predicted words (e.g., ['je', "t'aime", '.'])
+    """
+    # Convert PyTorch tensor to CPU NumPy array if necessary
+    if hasattr(attention_matrix, 'cpu'):
+        attention_matrix = attention_matrix.cpu().numpy()
+
+    # Crop the attention matrix to match the actual words generated up to 'endseq'
+    attention_matrix = attention_matrix[:len(target_words), :len(source_words)]
+
+    # Setup the plot canvas
+    fig, ax = plt.subplots(figsize=(7, 6))
+    
+    # Render the matrix as a heatmap using the viridis or plasma colormap
+    cax = ax.imshow(attention_matrix, cmap='viridis', aspect='auto')
+    fig.colorbar(cax, label='Attention Coefficient Strength')
+
+    # Configure the Axis Ticks to map directly to the text lists
+    ax.set_xticks(np.arange(len(source_words)))
+    ax.set_yticks(np.arange(len(target_words)))
+    
+    ax.set_xticklabels(source_words, rotation=45, ha="right")
+    ax.set_yticklabels(target_words)
+
+    # Labels and Titles
+    ax.set_xlabel('Source Sequence (Input English String)', fontsize=11, labelpad=10)
+    ax.set_ylabel('Target Sequence (Model French Output)', fontsize=11, labelpad=10)
+    ax.set_title('Bahdanau Additive Attention Alignment Map', fontsize=13, weight='bold', pad=15)
+
+    plt.tight_layout()
+    
+    # Save or view the image
+    plt.savefig('../plots/attention_alignment_map.png', dpi=300)
+    plt.show()
+
+__all__ = ["load_and_vectorize_data", "train_model", "translate_sentence", "translate_and_visualize"]
