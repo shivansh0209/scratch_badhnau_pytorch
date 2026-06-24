@@ -1,4 +1,5 @@
 # Learnings
+
 1. Got to know that state dimensions are equal to the number of units passed in the LSTM or so.
 
 2. I had a misconception that in Badhnau that the alpha will also be a vector but its not like that. I got to know while coding
